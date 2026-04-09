@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音频播放器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #fff;
+            margin-bottom: 25px;
+            font-weight: 600;
+            font-size: 28px;
+            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .player-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .file-input-container {
+            margin-bottom: 20px;
+        }
+
+        .file-label {
+            display: block;
+            background: linear-gradient(to right, #3498db, #2ecc71);
+            color: white;
+            padding: 14px 24px;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            margin-bottom: 10px;
+            font-size: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        .file-label:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 14px rgba(0, 0, 0, 0.3);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-info {
+            color: #ddd;
+            font-size: 14px;
+            text-align: center;
+            margin-top: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .loading-indicator {
+            display: none;
+            color: #2ecc71;
+            font-size: 14px;
+        }
+
+        .loading-indicator.active {
+            display: inline-block;
+        }
+
+        .audio-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 25px;
+            gap: 20px;
+        }
+
+        .control-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05);
+        }
+
+        .play-btn {
+            background: linear-gradient(to right, #2ecc71, #3498db);
+            width: 65px;
+            height: 65px;
+            font-size: 26px;
+        }
+
+        .play-btn:hover {
+            box-shadow: 0 0 15px rgba(46, 204, 113, 0.5);
+        }
+
+        .play-btn:disabled {
+            background: rgba(255, 255, 255, 0.1);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .play-btn:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        .time-display {
+            color: #ddd;
+            font-size: 15px;
+            text-align: center;
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .progress-container {
+            margin: 20px 0;
+            position: relative;
+            height: 30px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(to right, #3498db, #2ecc71);
+            width: 0%;
+            border-radius: 4px;
+            transition: width 0.1s linear;
+        }
+
+        .progress-slider {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 100%;
+            height: 30px;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 2;
+        }
+
+        .visualization-container {
+            margin-top: 30px;
+        }
+
+        .canvas-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+            height: 200px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        #decibelCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .time-indicator {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: rgba(255, 255, 255, 0.9);
+            transform: translateX(-50%);
+            left: 50%;
+            z-index: 1;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
+            pointer-events: none;
+        }
+
+        .db-info {
+            color: #ddd;
+            font-size: 14px;
+            text-align: center;
+            margin-top: 15px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .db-value {
+            color: #2ecc71;
+            font-weight: bold;
+        }
+
+        .db-negative {
+            color: #e74c3c;
+        }
+
+        .instructions {
+            color: #aaa;
+            font-size: 13px;
+            text-align: center;
+            margin-top: 25px;
+            line-height: 1.5;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            border-left: 3px solid #3498db;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .error-message {
+            color: #e74c3c;
+            text-align: center;
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(231, 76, 60, 0.1);
+            border-radius: 6px;
+            border: 1px solid rgba(231, 76, 60, 0.3);
+        }
+
+        .drag-indicator {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: rgba(255, 255, 0, 0.8);
+            z-index: 2;
+            box-shadow: 0 0 15px rgba(255, 255, 0, 0.6);
+            pointer-events: none;
+            display: none;
+        }
+
+        .drag-time-display {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 3;
+            pointer-events: none;
+            display: none;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            .player-card {
+                padding: 20px;
+            }
+
+            .canvas-container {
+                height: 160px;
+            }
+
+            .audio-controls {
+                gap: 15px;
+            }
+
+            .play-btn {
+                width: 55px;
+                height: 55px;
+                font-size: 22px;
+            }
+
+            .db-info {
+                flex-direction: column;
+                gap: 5px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>音频播放器</h1>
+
+        <div class="player-card">
+            <div class="file-input-container">
+                <label for="audioFile" class="file-label">
+                    <span>📁 选择音频文件 (MP3, WAV, OGG等)</span>
+                </label>
+                <input type="file" id="audioFile" class="file-input" accept="audio/*">
+                <div class="file-info">
+                    <span id="fileInfo">未选择文件</span>
+                    <span id="loadingIndicator" class="loading-indicator">分析音频中...</span>
+                </div>
+                <div id="errorMessage" class="error-message hidden"></div>
+            </div>
+
+            <div class="audio-controls">
+                <button id="prevBtn" class="control-btn" disabled>⏮</button>
+                <button id="playBtn" class="control-btn play-btn" disabled>▶</button>
+                <button id="nextBtn" class="control-btn" disabled>⏭</button>
+            </div>
+
+            <div class="time-display">
+                <span id="currentTime">0:00</span>
+                <span id="duration">0:00</span>
+            </div>
+
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <input type="range" id="progressSlider" class="progress-slider" min="0" max="100" value="0">
+            </div>
+
+            <div class="visualization-container">
+                <div class="canvas-container" id="canvasContainer">
+                    <canvas id="decibelCanvas"></canvas>
+                    <div class="time-indicator"></div>
+                    <div class="drag-indicator" id="dragIndicator"></div>
+                    <div class="drag-time-display" id="dragTimeDisplay"></div>
+                </div>
+                <div class="db-info">
+                    <span>当前分贝: <span id="dbLevel" class="db-value">-- dB</span></span>
+                    <span>峰值分贝: <span id="peakDb" class="db-value">-- dB</span></span>
+                    <span>时间: <span id="currentTimeIndicator" class="db-value">0:00</span></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <strong>使用说明:</strong>
+            <ul style="text-align: left; margin-top: 8px; padding-left: 20px;">
+                <li>选择音频文件后，系统会分析整个音频文件生成精确的分贝图</li>
+                <li><strong>点击分贝图</strong>可以跳转到对应时间位置</li>
+                <li><strong>在分贝图上拖动</strong>可以预览并选择精确的时间位置</li>
+                <li>播放时，分贝图会以当前播放时间为中心显示前后数秒的波形</li>
+                <li>拖动进度条也可以跳转播放位置，分贝图会同步更新</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // 获取DOM元素
+            const audioFileInput = document.getElementById('audioFile');
+            const fileInfo = document.getElementById('fileInfo');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const errorMessage = document.getElementById('errorMessage');
+            const playBtn = document.getElementById('playBtn');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const currentTimeEl = document.getElementById('currentTime');
+            const durationEl = document.getElementById('duration');
+            const progressFill = document.getElementById('progressFill');
+            const progressSlider = document.getElementById('progressSlider');
+            const decibelCanvas = document.getElementById('decibelCanvas');
+            const canvasContainer = document.getElementById('canvasContainer');
+            const dragIndicator = document.getElementById('dragIndicator');
+            const dragTimeDisplay = document.getElementById('dragTimeDisplay');
+            const dbLevel = document.getElementById('dbLevel');
+            const peakDb = document.getElementById('peakDb');
+            const currentTimeIndicator = document.getElementById('currentTimeIndicator');
+            const timeIndicator = document.querySelector('.time-indicator');
+
+            // 音频分析变量
+            let audioContext = null;
+            let canvasCtx;
+
+            // 音频数据存储
+            let audioBuffer = null;
+            let audioData = null;
+            let audioDuration = 0;
+
+            // 音频播放元素
+            const audio = new Audio();
+            let isPlaying = false;
+            let animationFrameId = null;
+
+            // 拖动状态变量
+            let isDragging = false;
+            let isMouseDown = false;
+            let isTouchActive = false;
+            let isClickEvent = false;
+            let isSliderDragging = false;
+            let dragStartX = 0;
+            let currentDragX = 0;
+            let dragStartTime = 0;
+            let lastDrawTime = 0;
+            let lastProgressUpdate = 0;
+            let targetTime = 0;
+            // 常量
+            const VISUALIZATION_WINDOW = 16; // 显示x秒的音频（当前时间前后各x/2秒）
+            const DRAW_THROTTLE = 16; // 约60fps
+            const PROGRESS_UPDATE_INTERVAL = 100; // 进度更新间隔(ms)
+            const DRAG_THRESHOLD = 50; // 拖动阈值（像素）
+
+            // 初始化Canvas
+            canvasCtx = decibelCanvas.getContext('2d');
+
+            // 调整Canvas大小以适应容器
+            function resizeCanvas() {
+                const container = decibelCanvas.parentElement;
+                decibelCanvas.width = container.clientWidth;
+                decibelCanvas.height = container.clientHeight;
+            }
+
+            // 初始化时调整Canvas大小
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+
+            // 显示错误信息
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.classList.remove('hidden');
+                setTimeout(() => {
+                    errorMessage.classList.add('hidden');
+                }, 5000);
+            }
+
+            // 重置播放器状态
+            function resetPlayer() {
+                // 停止播放
+                audio.pause();
+                isPlaying = false;
+                playBtn.innerHTML = '▶';
+
+                // 停止动画
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+
+                // 重置变量
+                audioBuffer = null;
+                audioData = null;
+                audioDuration = 0;
+                isDragging = false;
+                isMouseDown = false;
+                isTouchActive = false;
+                isClickEvent = false;
+                isSliderDragging = false;
+
+                // 重置UI
+                currentTimeEl.textContent = '0:00';
+                durationEl.textContent = '0:00';
+                progressFill.style.width = '0%';
+                progressSlider.value = 0;
+                dbLevel.textContent = '-- dB';
+                peakDb.textContent = '-- dB';
+                currentTimeIndicator.textContent = '0:00';
+
+                // 禁用控制按钮
+                playBtn.disabled = true;
+                prevBtn.disabled = true;
+                nextBtn.disabled = true;
+
+                // 隐藏拖动指示器
+                dragIndicator.style.display = 'none';
+                dragTimeDisplay.style.display = 'none';
+
+                // 清除Canvas
+                canvasCtx.clearRect(0, 0, decibelCanvas.width, decibelCanvas.height);
+
+                // 绘制初始状态
+                drawInitialCanvas();
+            }
+
+            // 绘制初始Canvas状态
+            function drawInitialCanvas() {
+                const width = decibelCanvas.width;
+                const height = decibelCanvas.height;
+
+                // 清除画布
+                canvasCtx.clearRect(0, 0, width, height);
+
+                // 绘制背景
+                canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                canvasCtx.fillRect(0, 0, width, height);
+
+                // 绘制提示文字
+                canvasCtx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                canvasCtx.font = '16px Arial';
+                canvasCtx.textAlign = 'center';
+                canvasCtx.textBaseline = 'middle';
+                canvasCtx.fillText('请选择音频文件以生成分贝图', width / 2, height / 2);
+            }
+
+            // 文件选择事件
+            audioFileInput.addEventListener('change', async function (e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // 检查文件类型
+                if (!file.type.startsWith('audio/')) {
+                    showError('请选择音频文件 (MP3, WAV, OGG等)');
+                    return;
+                }
+
+                // 显示文件信息和加载状态
+                fileInfo.textContent = `正在分析: ${file.name}`;
+                loadingIndicator.classList.add('active');
+                errorMessage.classList.add('hidden');
+
+                // 重置播放器
+                resetPlayer();
+
+                try {
+                    // 创建音频URL
+                    const url = URL.createObjectURL(file);
+
+                    // 加载并分析音频
+                    await loadAndAnalyzeAudio(url);
+
+                    // 分析完成后更新UI
+                    fileInfo.textContent = `已加载: ${file.name} (${formatTime(audioDuration)})`;
+                    loadingIndicator.classList.remove('active');
+
+                    // 启用控制按钮
+                    playBtn.disabled = false;
+                    prevBtn.disabled = false;
+                    nextBtn.disabled = false;
+
+                    // 设置音频时长
+                    durationEl.textContent = formatTime(audioDuration);
+
+                    // 初始化进度条事件
+                    initProgressBarEvents();
+
+                    // 绘制初始分贝图
+                    drawDecibelVisualization(0);
+
+                } catch (error) {
+                    console.error('音频分析失败:', error);
+                    fileInfo.textContent = `加载失败: ${file.name}`;
+                    loadingIndicator.classList.remove('active');
+                    showError(`无法分析音频文件: ${error.message}`);
+                }
+            });
+
+            // 加载并分析音频
+            async function loadAndAnalyzeAudio(url) {
+                try {
+                    // 1. 获取音频数据
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`HTTP错误: ${response.status}`);
+                    }
+
+                    const arrayBuffer = await response.arrayBuffer();
+
+                    // 2. 创建音频上下文
+                    if (audioContext) {
+                        await audioContext.close();
+                    }
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+                    // 3. 解码AudioBuffer
+                    audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    audioDuration = audioBuffer.duration;
+
+                    // 4. 分析音频分贝数据
+                    const rawDecibelData = analyzeAudioDirectly(audioBuffer);
+
+                    // 5. 归一化数据
+                    audioData = normalizeDecibelData(rawDecibelData);
+
+                    // 6. 设置音频源
+                    audio.src = url;
+
+                    // 7. 更新峰值分贝显示
+                    peakDb.textContent = `${audioData.peakDb.toFixed(1)} dB`;
+
+                    // 根据峰值分贝设置颜色
+                    if (audioData.peakDb > 0) {
+                        peakDb.className = 'db-value';
+                    } else if (audioData.peakDb > -20) {
+                        peakDb.className = 'db-value';
+                    } else {
+                        peakDb.className = 'db-value db-negative';
+                    }
+
+                } catch (error) {
+                    throw new Error(`音频分析失败: ${error.message}`);
+                }
+            }
+
+            // 直接分析音频样本数据
+            function analyzeAudioDirectly(buffer) {
+                // 取第一个声道进行分析
+                const channelData = buffer.getChannelData(0);
+                const sampleRate = buffer.sampleRate;
+
+                // 设置分析窗口（每10ms一个数据点）
+                const windowSize = Math.floor(sampleRate * 0.01); // 10ms窗口
+                let decibelData = [];
+
+                // 添加前x/2秒的空数据
+                const preDataCount = VISUALIZATION_WINDOW/2 * 100; // 每秒100个数据点（10ms一个）
+                for (let i = 0; i < preDataCount; i++) {
+                    decibelData.push({
+                        time: i * 0.01,
+                        db: -100,
+                        rms: 0
+                    });
+                }
+
+                // 遍历音频样本
+                for (let i = 0; i < channelData.length; i += windowSize) {
+                    const end = Math.min(i + windowSize, channelData.length);
+
+                    // 计算当前窗口的RMS（均方根）值
+                    let sum = 0;
+                    let count = 0;
+                    for (let j = i; j < end; j++) {
+                        sum += channelData[j] * channelData[j];
+                        count++;
+                    }
+
+                    const rms = Math.sqrt(sum / count);
+
+                    // 计算分贝值
+                    // 参考值：1.0 = 0dB，使用-100dB作为最小值
+                    const db = rms > 0.00001 ? 20 * Math.log10(rms) : -100;
+
+                    // 计算当前时间
+                    const currentTime = i / sampleRate;
+
+                    decibelData.push({
+                        time: currentTime + VISUALIZATION_WINDOW/2,
+                        db: db,
+                        rms: rms
+                    });
+                }
+
+                // 添加后2秒的空数据
+                const audioDuration = decibelData.length * 0.01;
+                const postDataCount = VISUALIZATION_WINDOW/2 * 100; // 每秒100个数据点（10ms一个）
+                for (let i = 1; i <= postDataCount; i++) {
+                    decibelData.push({
+                        time: audioDuration + (i * 0.01),
+                        db: -100,
+                        rms: 0
+                    });
+                }
+
+                return decibelData;
+            }
+
+            // 归一化分贝数据到0-100范围
+            function normalizeDecibelData(decibelData) {
+                if (decibelData.length === 0) {
+                    return {
+                        normalizedData: [],
+                        minDb: -100,
+                        maxDb: 0,
+                        peakDb: 0
+                    };
+                }
+
+                // 1. 找出最大最小值
+                let maxDb = -Infinity;
+                let minDb = Infinity;
+
+                decibelData.forEach(item => {
+                    if (item.db > maxDb) maxDb = item.db;
+                    if (item.db < minDb) minDb = item.db;
+                });
+
+                // 确保最小值至少为-100
+                minDb = Math.max(minDb, -100);
+
+                // 2. 归一化到0-100范围
+                const normalizedData = decibelData.map(item => ({
+                    time: item.time,
+                    db: item.db,
+                    normalizedDb: ((item.db - minDb) / (maxDb - minDb)) * 100
+                }));
+                return {
+                    rawData: decibelData,
+                    normalizedData: normalizedData,
+                    minDb: minDb,
+                    maxDb: maxDb,
+                    peakDb: maxDb
+                };
+            }
+
+            // 绘制分贝图（以指定时间为中心）
+            function drawDecibelVisualization(currentTime1, highlightX = null) {
+                let currentTime = currentTime1 + VISUALIZATION_WINDOW / 2;
+                const width = decibelCanvas.width;
+                const height = decibelCanvas.height;
+
+                // 清除画布
+                canvasCtx.clearRect(0, 0, width, height);
+
+                if (!audioData || audioData.normalizedData.length === 0) {
+                    drawInitialCanvas();
+                    return;
+                }
+
+                // 计算显示的时间范围（当前时间前后各x/2秒）
+                const startTime = currentTime - VISUALIZATION_WINDOW / 2;
+                const endTime = currentTime + VISUALIZATION_WINDOW / 2;
+                const windowDuration = endTime - startTime;
+
+                // 筛选在显示范围内的数据点
+                const visibleData = audioData.normalizedData.filter(item =>
+                    item.time >= startTime && item.time <= endTime
+                );
+
+                if (visibleData.length === 0) return;
+
+                // 绘制背景
+                canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                canvasCtx.fillRect(0, 0, width, height);
+
+                // 绘制分贝曲线
+                canvasCtx.beginPath();
+
+                for (let i = 0; i < visibleData.length; i++) {
+                    const data = visibleData[i];
+
+                    // 计算X坐标
+                    const x = ((data.time - startTime) / windowDuration) * width;
+
+                    // 计算Y坐标（归一化分贝值映射到高度）
+                    const y = height - (data.normalizedDb / 100) * height;
+
+                    if (i === 0) {
+                        canvasCtx.moveTo(x, y);
+                    } else {
+                        canvasCtx.lineTo(x, y);
+                    }
+
+                    // 如果是当前时间点附近，更新分贝显示
+                    if (Math.abs(data.time - currentTime) < (windowDuration / width)) {
+                        updateCurrentDbDisplay(data.db, currentTime);
+                    }
+                }
+
+                // 创建渐变
+                const gradient = canvasCtx.createLinearGradient(0, 0, 0, height);
+                gradient.addColorStop(0, '#2ecc71'); // 绿色
+                gradient.addColorStop(0.5, '#3498db'); // 蓝色
+                gradient.addColorStop(1, '#9b59b6'); // 紫色
+
+                canvasCtx.strokeStyle = gradient;
+                canvasCtx.lineWidth = 2;
+                canvasCtx.stroke();
+
+                // 填充分贝图下方区域
+                canvasCtx.lineTo(width, height);
+                canvasCtx.lineTo(0, height);
+                canvasCtx.closePath();
+                canvasCtx.fillStyle = 'rgba(46, 204, 113, 0.15)';
+                canvasCtx.fill();
+
+                // 绘制时间网格
+                canvasCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                canvasCtx.lineWidth = 0.5;
+                canvasCtx.beginPath();
+
+                // 绘制时间刻度
+                const timeStep = 1; // 每秒一个刻度
+                for (let t = Math.ceil(startTime); t <= endTime; t += timeStep) {
+                    const x = ((t - startTime) / windowDuration) * width;
+                    canvasCtx.moveTo(x, 0);
+                    canvasCtx.lineTo(x, height);
+
+                    // 绘制时间标签
+                    canvasCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                    canvasCtx.font = '10px Arial';
+                    canvasCtx.textAlign = 'center';
+                    canvasCtx.fillText(formatTime(t), x, height - 5);
+                }
+                canvasCtx.stroke();
+
+                // 绘制分贝刻度
+                canvasCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                canvasCtx.beginPath();
+
+                // 绘制分贝刻度线
+                for (let level = 0; level <= 100; level += 20) {
+                    const y = height - (level / 100) * height;
+                    canvasCtx.moveTo(0, y);
+                    canvasCtx.lineTo(width, y);
+
+                    // 绘制分贝标签
+                    canvasCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                    canvasCtx.font = '10px Arial';
+                    canvasCtx.textAlign = 'left';
+
+                    // 将归一化值转换回原始分贝值范围
+                    const originalDb = audioData.minDb + (level / 100) * (audioData.maxDb - audioData.minDb);
+                    canvasCtx.fillText(`${originalDb.toFixed(0)} dB`, 5, y - 2);
+                }
+                canvasCtx.stroke();
+
+                
+            }
+
+            // 更新当前分贝显示
+            function updateCurrentDbDisplay(dbValue, currentTime) {
+                // 更新分贝显示
+                dbLevel.textContent = `${dbValue.toFixed(1)} dB`;
+
+                // 根据分贝值设置颜色
+                if (dbValue > 0) {
+                    dbLevel.className = 'db-value';
+                } else if (dbValue > -20) {
+                    dbLevel.className = 'db-value';
+                } else {
+                    dbLevel.className = 'db-value db-negative';
+                }
+
+                // 更新时间显示
+                currentTimeIndicator.textContent = formatTime(currentTime);
+            }
+
+            // 将Canvas坐标转换为时间
+            function canvasXToTime(canvasX, currentTime) {
+                if (!audioDuration || audioDuration <= 0) return 0;
+
+                const width = decibelCanvas.width;
+
+                // 确保canvasX在有效范围内
+                const clampedX = Math.max(0, Math.min(width, canvasX));
+
+                // 计算当前显示的时间范围
+                const startTime = Math.max(0, currentTime - VISUALIZATION_WINDOW / 2);
+                const endTime = Math.min(audioDuration, currentTime + VISUALIZATION_WINDOW / 2);
+                const windowDuration = endTime - startTime;
+
+                if (windowDuration <= 0) return currentTime;
+
+                // 计算对应的时间
+                const relativeTime = (clampedX / width) * windowDuration;
+                const targetTime = startTime + relativeTime;
+
+                // 确保时间在有效范围内
+                return Math.max(0, Math.min(audioDuration, targetTime));
+            }
+
+            // 获取Canvas坐标
+            function getCanvasPosition(clientX, clientY) {
+                const rect = canvasContainer.getBoundingClientRect();
+                const x = clientX - rect.left;
+                const y = clientY - rect.top;
+
+                // 确保坐标在Canvas范围内
+                return {
+                    x: Math.max(0, Math.min(decibelCanvas.width, x)),
+                    y: Math.max(0, Math.min(decibelCanvas.height, y))
+                };
+            }
+
+            // 开始拖动
+            function startDrag(clientX, clientY) {
+                if (!audioData || !audioDuration) return false;
+
+                const pos = getCanvasPosition(clientX, clientY);
+
+
+                // 暂停播放
+                pauseAudio();
+
+                // 开始拖动
+                isDragging = true;
+                dragStartX = pos.x;
+                currentDragX = pos.x;
+
+                return true;
+            }
+
+            // 结束拖动
+            function endDrag(clientX, clientY) {
+                if (!isDragging) return;
+
+                // 结束拖动状态
+                isDragging = false;
+                isMouseDown = false;
+                isTouchActive = false;
+                isClickEvent = false;
+
+
+                audio.currentTime = Math.max(0, Math.min(audioDuration, targetTime));
+
+                // 更新UI
+                updateProgressDisplay();
+
+                // 恢复播放
+                playAudio();
+            }
+
+            // 更新拖动
+            function updateDrag(moveDistance) {
+                if (!isDragging) return;
+
+                // 计算对应时间
+                targetTime = audio.currentTime - moveDistance * (VISUALIZATION_WINDOW / decibelCanvas.width);
+                // 节流绘制
+                const now = Date.now();
+                if (now - lastDrawTime > DRAW_THROTTLE) {
+                    drawDecibelVisualization(targetTime);
+                    lastDrawTime = now;
+                }
+            }
+
+            // 初始化Canvas拖动事件
+            function initCanvasDragEvents() {
+                // 鼠标事件
+                canvasContainer.addEventListener('mousedown', function (e) {
+                    if (e.button !== 0) return; // 只处理左键
+                    e.preventDefault();
+
+                    isClickEvent = true;
+                    isMouseDown = startDrag(e.clientX, e.clientY);
+                });
+
+                canvasContainer.addEventListener('mousemove', function (e) {
+                    e.preventDefault();
+
+                    const pos = getCanvasPosition(e.clientX, e.clientY);
+
+                    if (isMouseDown) {
+                        // 检查是否真的是拖动（移动超过阈值）
+                        const moveDistance = pos.x - dragStartX;
+                        if (Math.abs(moveDistance) > DRAG_THRESHOLD) {
+                            isClickEvent = false;
+                        }
+
+                        updateDrag(moveDistance);
+                    } else {
+                        // 鼠标悬停时显示时间提示
+                        targetTime = canvasXToTime(pos.x, audio.currentTime);
+                        console.log('mousemove:', targetTime);
+                        dragTimeDisplay.textContent = formatTime(targetTime);
+                        dragTimeDisplay.style.left = `${Math.min(pos.x, decibelCanvas.width - 60)}px`;
+                        dragTimeDisplay.style.display = 'block';
+                    }
+                });
+
+                canvasContainer.addEventListener('mouseup', function (e) {
+                    if (e.button !== 0) return;
+                    e.preventDefault();
+                    endDrag(e.clientX, e.clientY);
+                });
+
+                canvasContainer.addEventListener('mouseleave', function (e) {
+                    if (isMouseDown) {
+                        // 鼠标在拖动中离开Canvas，使用最后已知位置结束拖动
+                        const rect = canvasContainer.getBoundingClientRect();
+                        const clientX = e.clientX || (rect.left + currentDragX);
+                        const clientY = e.clientY || (rect.top + rect.height / 2);
+                        endDrag(clientX, clientY);
+                    } else if (!isTouchActive) {
+                        // 隐藏时间提示
+                        dragTimeDisplay.style.display = 'none';
+                    }
+                });
+
+                // 点击事件（快速跳转）
+                canvasContainer.addEventListener('click', function (e) {
+                    if (e.button !== 0) return;
+                    e.preventDefault();
+
+                    // 只处理真正的点击事件（不是拖动结束）
+                    if (!isClickEvent) return;
+
+                    if (!audioData || !audioDuration) return;
+
+                    const pos = getCanvasPosition(e.clientX, e.clientY);
+                    targetTime = canvasXToTime(pos.x, audio.currentTime);
+                    console.log('click:', targetTime);
+                    // 跳转到目标时间
+                    audio.currentTime = targetTime;
+
+                    // 更新UI
+                    updateProgressDisplay();
+                    drawDecibelVisualization(targetTime);
+                });
+            }
+
+            // 初始化进度条事件
+            function initProgressBarEvents() {
+                progressSlider.addEventListener('mousedown', function () {
+                    isSliderDragging = true;
+                    // 暂停动画循环
+                    if (animationFrameId) {
+                        cancelAnimationFrame(animationFrameId);
+                        animationFrameId = null;
+                    }
+                });
+
+                progressSlider.addEventListener('mouseup', function () {
+                    isSliderDragging = false;
+                    // 恢复动画循环
+                    if (isPlaying) {
+                        updateProgressAndVisualization();
+                    }
+                });
+
+                progressSlider.addEventListener('input', function () {
+                    if (!audioDuration) return;
+
+                    const percent = progressSlider.value;
+                    const time = (percent / 100) * audioDuration;
+                    audio.currentTime = time;
+
+                    updateProgressDisplay();
+
+                    // 只有在拖动时才更新分贝图
+                    if (isSliderDragging) {
+                        drawDecibelVisualization(time);
+                    }
+                });
+            }
+
+            // 播放/暂停控制
+            playBtn.addEventListener('click', function () {
+                if (!audio.src || !audioData) return;
+
+                if (isPlaying) {
+                    pauseAudio();
+                } else {
+                    playAudio();
+                }
+            });
+
+            function playAudio() {
+                if (!audio.src || !audioData) return;
+
+                // 如果音频上下文处于挂起状态，恢复它
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+
+                audio.play();
+                isPlaying = true;
+                playBtn.innerHTML = '⏸';
+
+                // 开始更新进度和分贝图
+                updateProgressAndVisualization();
+            }
+
+            function pauseAudio() {
+                audio.pause();
+                isPlaying = false;
+                playBtn.innerHTML = '▶';
+
+                // 停止动画循环
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+            }
+
+            // 快退/快进按钮
+            prevBtn.addEventListener('click', function () {
+                if (!audio.src || !audioData) return;
+
+                audio.currentTime = Math.max(0, audio.currentTime - 10);
+                drawDecibelVisualization(audio.currentTime);
+                updateProgressDisplay();
+            });
+
+            nextBtn.addEventListener('click', function () {
+                if (!audio.src || !audioData) return;
+
+                audio.currentTime = Math.min(audioDuration, audio.currentTime + 10);
+                drawDecibelVisualization(audio.currentTime);
+                updateProgressDisplay();
+            });
+
+            // 更新进度显示
+            function updateProgressDisplay() {
+                if (!audioDuration) return;
+
+                const percent = (audio.currentTime / audioDuration) * 100;
+                progressFill.style.width = `${percent}%`;
+                progressSlider.value = percent;
+                currentTimeEl.textContent = formatTime(audio.currentTime);
+            }
+
+            // 更新进度条和分贝图
+            function updateProgressAndVisualization() {
+                if (!audioDuration) return;
+
+                const now = Date.now();
+
+                // 实时更新分贝图
+                drawDecibelVisualization(audio.currentTime);
+
+                // 节流进度更新（避免与timeupdate冲突）
+                if (now - lastProgressUpdate > PROGRESS_UPDATE_INTERVAL) {
+                    updateProgressDisplay();
+                    lastProgressUpdate = now;
+                }
+
+                if (isPlaying) {
+                    animationFrameId = requestAnimationFrame(updateProgressAndVisualization);
+                }
+            }
+
+            // 音频时间更新事件
+            audio.addEventListener('timeupdate', function () {
+                // 仅作为后备，主要更新由动画循环处理
+                // 当动画循环暂停时（如拖动中），仍能更新进度
+                if (!animationFrameId && !isSliderDragging && !isDragging) {
+                    updateProgressDisplay();
+                }
+            });
+
+            // 音频结束事件
+            audio.addEventListener('ended', function () {
+                pauseAudio();
+            });
+
+            // 音频错误事件
+            audio.addEventListener('error', function (e) {
+                console.error('音频播放错误:', e);
+                showError('音频播放错误，请尝试其他文件');
+                pauseAudio();
+            });
+
+            // 格式化时间显示 (秒 -> MM:SS)
+            function formatTime(seconds) {
+                if (isNaN(seconds) || seconds < 0) return '0:00';
+
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            }
+
+            // 初始化Canvas拖动事件
+            initCanvasDragEvents();
+
+            // 初始绘制
+            drawInitialCanvas();
+        });
+    </script>
+</body>
+
+</html>

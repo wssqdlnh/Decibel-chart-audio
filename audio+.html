@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -198,6 +197,7 @@
 
         .visualization-container {
             margin-top: 30px;
+            position: relative;
         }
 
         .canvas-container {
@@ -211,6 +211,26 @@
             user-select: none;
         }
 
+        .input-div {
+            color: #ddd;
+            position: absolute;
+            top: -30px;
+            left: 40%;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            z-index: 2;
+        }
+
+        .input-p {
+            color: #ddd;
+            font-size: 14px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            width: 30px;
+            text-align: center;
+        }
+
         #decibelCanvas {
             display: block;
             width: 100%;
@@ -222,30 +242,12 @@
             top: 0;
             bottom: 0;
             width: 2px;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(203, 216, 219, 0.9);
             transform: translateX(-50%);
             left: 50%;
             z-index: 1;
             box-shadow: 0 0 10px rgba(255, 255, 255, 0.7);
             pointer-events: none;
-        }
-
-        .db-info {
-            color: #ddd;
-            font-size: 14px;
-            text-align: center;
-            margin-top: 15px;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .db-value {
-            color: #2ecc71;
-            font-weight: bold;
-        }
-
-        .db-negative {
-            color: #e74c3c;
         }
 
         .instructions {
@@ -274,34 +276,6 @@
             border: 1px solid rgba(231, 76, 60, 0.3);
         }
 
-        .drag-indicator {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: rgba(255, 255, 0, 0.8);
-            z-index: 2;
-            box-shadow: 0 0 15px rgba(255, 255, 0, 0.6);
-            pointer-events: none;
-            display: none;
-        }
-
-        .drag-time-display {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: #fff;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-size: 12px;
-            z-index: 3;
-            pointer-events: none;
-            display: none;
-            white-space: nowrap;
-        }
-
         @media (max-width: 600px) {
             .container {
                 padding: 20px;
@@ -325,10 +299,6 @@
                 font-size: 22px;
             }
 
-            .db-info {
-                flex-direction: column;
-                gap: 5px;
-            }
         }
     </style>
 </head>
@@ -336,7 +306,6 @@
 <body>
     <div class="container">
         <h1>音频播放器</h1>
-
         <div class="player-card">
             <div class="file-input-container">
                 <label for="audioFile" class="file-label">
@@ -369,29 +338,16 @@
             </div>
 
             <div class="visualization-container">
+                <div id="inputDiv" class="input-div">
+                    <span class="input-prefix">分贝图宽度：</span>
+                    <input id="inputWidth" class="input-p" type="text" value="16">
+                    <span class="input-suffix">秒</span>
+                </div>
                 <div class="canvas-container" id="canvasContainer">
                     <canvas id="decibelCanvas"></canvas>
                     <div class="time-indicator"></div>
-                    <div class="drag-indicator" id="dragIndicator"></div>
-                    <div class="drag-time-display" id="dragTimeDisplay"></div>
-                </div>
-                <div class="db-info">
-                    <span>当前分贝: <span id="dbLevel" class="db-value">-- dB</span></span>
-                    <span>峰值分贝: <span id="peakDb" class="db-value">-- dB</span></span>
-                    <span>时间: <span id="currentTimeIndicator" class="db-value">0:00</span></span>
                 </div>
             </div>
-        </div>
-
-        <div class="instructions">
-            <strong>使用说明:</strong>
-            <ul style="text-align: left; margin-top: 8px; padding-left: 20px;">
-                <li>选择音频文件后，系统会分析整个音频文件生成精确的分贝图</li>
-                <li><strong>点击分贝图</strong>可以跳转到对应时间位置</li>
-                <li><strong>在分贝图上拖动</strong>可以预览并选择精确的时间位置</li>
-                <li>播放时，分贝图会以当前播放时间为中心显示前后数秒的波形</li>
-                <li>拖动进度条也可以跳转播放位置，分贝图会同步更新</li>
-            </ul>
         </div>
     </div>
 
@@ -411,16 +367,12 @@
             const progressSlider = document.getElementById('progressSlider');
             const decibelCanvas = document.getElementById('decibelCanvas');
             const canvasContainer = document.getElementById('canvasContainer');
-            const dragIndicator = document.getElementById('dragIndicator');
-            const dragTimeDisplay = document.getElementById('dragTimeDisplay');
-            const dbLevel = document.getElementById('dbLevel');
-            const peakDb = document.getElementById('peakDb');
-            const currentTimeIndicator = document.getElementById('currentTimeIndicator');
-            const timeIndicator = document.querySelector('.time-indicator');
+            const inputWidth = document.getElementById('inputWidth');
 
             // 音频分析变量
             let audioContext = null;
             let canvasCtx;
+            let scaleFactor;
 
             // 音频数据存储
             let audioBuffer = null;
@@ -433,19 +385,15 @@
             let animationFrameId = null;
 
             // 拖动状态变量
-            let isDragging = false;
             let isMouseDown = false;
-            let isTouchActive = false;
             let isClickEvent = false;
             let isSliderDragging = false;
             let dragStartX = 0;
-            let currentDragX = 0;
-            let dragStartTime = 0;
             let lastDrawTime = 0;
             let lastProgressUpdate = 0;
             let targetTime = 0;
             // 常量
-            const VISUALIZATION_WINDOW = 16; // 显示x秒的音频（当前时间前后各x/2秒）
+            let VISUALIZATION_WINDOW = 16; // 显示x秒的音频（当前时间前后各x/2秒）
             const DRAW_THROTTLE = 16; // 约60fps
             const PROGRESS_UPDATE_INTERVAL = 100; // 进度更新间隔(ms)
             const DRAG_THRESHOLD = 50; // 拖动阈值（像素）
@@ -490,9 +438,7 @@
                 audioBuffer = null;
                 audioData = null;
                 audioDuration = 0;
-                isDragging = false;
                 isMouseDown = false;
-                isTouchActive = false;
                 isClickEvent = false;
                 isSliderDragging = false;
 
@@ -501,18 +447,11 @@
                 durationEl.textContent = '0:00';
                 progressFill.style.width = '0%';
                 progressSlider.value = 0;
-                dbLevel.textContent = '-- dB';
-                peakDb.textContent = '-- dB';
-                currentTimeIndicator.textContent = '0:00';
 
                 // 禁用控制按钮
                 playBtn.disabled = true;
                 prevBtn.disabled = true;
                 nextBtn.disabled = true;
-
-                // 隐藏拖动指示器
-                dragIndicator.style.display = 'none';
-                dragTimeDisplay.style.display = 'none';
 
                 // 清除Canvas
                 canvasCtx.clearRect(0, 0, decibelCanvas.width, decibelCanvas.height);
@@ -538,7 +477,8 @@
                 canvasCtx.font = '16px Arial';
                 canvasCtx.textAlign = 'center';
                 canvasCtx.textBaseline = 'middle';
-                canvasCtx.fillText('请选择音频文件以生成分贝图', width / 2, height / 2);
+                canvasCtx.fillText('请选择音频文件以生成分贝图', width / 2, height / 2 - 10);
+                canvasCtx.fillText('点击或拖动分贝图 可以调整播放位置', width / 2, height / 2 + 10);
             }
 
             // 文件选择事件
@@ -584,7 +524,6 @@
 
                     // 绘制初始分贝图
                     drawDecibelVisualization(0);
-
                 } catch (error) {
                     console.error('音频分析失败:', error);
                     fileInfo.textContent = `加载失败: ${file.name}`;
@@ -612,7 +551,7 @@
 
                     // 3. 解码AudioBuffer
                     audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                    audioDuration = audioBuffer.duration;
+                    let duration = audioBuffer.duration;
 
                     // 4. 分析音频分贝数据
                     const rawDecibelData = analyzeAudioDirectly(audioBuffer);
@@ -622,18 +561,9 @@
 
                     // 6. 设置音频源
                     audio.src = url;
-
-                    // 7. 更新峰值分贝显示
-                    peakDb.textContent = `${audioData.peakDb.toFixed(1)} dB`;
-
-                    // 根据峰值分贝设置颜色
-                    if (audioData.peakDb > 0) {
-                        peakDb.className = 'db-value';
-                    } else if (audioData.peakDb > -20) {
-                        peakDb.className = 'db-value';
-                    } else {
-                        peakDb.className = 'db-value db-negative';
-                    }
+                    await new Promise(res => audio.addEventListener('loadedmetadata', res));
+                    audioDuration = audio.duration;
+                    scaleFactor = audioDuration / duration;
 
                 } catch (error) {
                     throw new Error(`音频分析失败: ${error.message}`);
@@ -649,16 +579,6 @@
                 // 设置分析窗口（每10ms一个数据点）
                 const windowSize = Math.floor(sampleRate * 0.01); // 10ms窗口
                 let decibelData = [];
-
-                // 添加前x/2秒的空数据
-                const preDataCount = VISUALIZATION_WINDOW/2 * 100; // 每秒100个数据点（10ms一个）
-                for (let i = 0; i < preDataCount; i++) {
-                    decibelData.push({
-                        time: i * 0.01,
-                        db: -100,
-                        rms: 0
-                    });
-                }
 
                 // 遍历音频样本
                 for (let i = 0; i < channelData.length; i += windowSize) {
@@ -682,20 +602,9 @@
                     const currentTime = i / sampleRate;
 
                     decibelData.push({
-                        time: currentTime + VISUALIZATION_WINDOW/2,
+                        time: currentTime,
                         db: db,
                         rms: rms
-                    });
-                }
-
-                // 添加后2秒的空数据
-                const audioDuration = decibelData.length * 0.01;
-                const postDataCount = VISUALIZATION_WINDOW/2 * 100; // 每秒100个数据点（10ms一个）
-                for (let i = 1; i <= postDataCount; i++) {
-                    decibelData.push({
-                        time: audioDuration + (i * 0.01),
-                        db: -100,
-                        rms: 0
                     });
                 }
 
@@ -709,7 +618,6 @@
                         normalizedData: [],
                         minDb: -100,
                         maxDb: 0,
-                        peakDb: 0
                     };
                 }
 
@@ -736,13 +644,11 @@
                     normalizedData: normalizedData,
                     minDb: minDb,
                     maxDb: maxDb,
-                    peakDb: maxDb
                 };
             }
 
             // 绘制分贝图（以指定时间为中心）
-            function drawDecibelVisualization(currentTime1, highlightX = null) {
-                let currentTime = currentTime1 + VISUALIZATION_WINDOW / 2;
+            function drawDecibelVisualization(currentTime1) {
                 const width = decibelCanvas.width;
                 const height = decibelCanvas.height;
 
@@ -755,13 +661,12 @@
                 }
 
                 // 计算显示的时间范围（当前时间前后各x/2秒）
-                const startTime = currentTime - VISUALIZATION_WINDOW / 2;
-                const endTime = currentTime + VISUALIZATION_WINDOW / 2;
+                const startTime = currentTime1 - VISUALIZATION_WINDOW / 2;
+                const endTime = currentTime1 + VISUALIZATION_WINDOW / 2;
                 const windowDuration = endTime - startTime;
-
                 // 筛选在显示范围内的数据点
                 const visibleData = audioData.normalizedData.filter(item =>
-                    item.time >= startTime && item.time <= endTime
+                    item.time >= startTime / scaleFactor && item.time <= endTime / scaleFactor
                 );
 
                 if (visibleData.length === 0) return;
@@ -777,7 +682,7 @@
                     const data = visibleData[i];
 
                     // 计算X坐标
-                    const x = ((data.time - startTime) / windowDuration) * width;
+                    const x = ((data.time * scaleFactor - startTime) / windowDuration) * width;
 
                     // 计算Y坐标（归一化分贝值映射到高度）
                     const y = height - (data.normalizedDb / 100) * height;
@@ -788,10 +693,6 @@
                         canvasCtx.lineTo(x, y);
                     }
 
-                    // 如果是当前时间点附近，更新分贝显示
-                    if (Math.abs(data.time - currentTime) < (windowDuration / width)) {
-                        updateCurrentDbDisplay(data.db, currentTime);
-                    }
                 }
 
                 // 创建渐变
@@ -817,7 +718,7 @@
                 canvasCtx.beginPath();
 
                 // 绘制时间刻度
-                const timeStep = 1; // 每秒一个刻度
+                let timeStep = 1; // 每秒一个刻度
                 for (let t = Math.ceil(startTime); t <= endTime; t += timeStep) {
                     const x = ((t - startTime) / windowDuration) * width;
                     canvasCtx.moveTo(x, 0);
@@ -830,47 +731,6 @@
                     canvasCtx.fillText(formatTime(t), x, height - 5);
                 }
                 canvasCtx.stroke();
-
-                // 绘制分贝刻度
-                canvasCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-                canvasCtx.beginPath();
-
-                // 绘制分贝刻度线
-                for (let level = 0; level <= 100; level += 20) {
-                    const y = height - (level / 100) * height;
-                    canvasCtx.moveTo(0, y);
-                    canvasCtx.lineTo(width, y);
-
-                    // 绘制分贝标签
-                    canvasCtx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-                    canvasCtx.font = '10px Arial';
-                    canvasCtx.textAlign = 'left';
-
-                    // 将归一化值转换回原始分贝值范围
-                    const originalDb = audioData.minDb + (level / 100) * (audioData.maxDb - audioData.minDb);
-                    canvasCtx.fillText(`${originalDb.toFixed(0)} dB`, 5, y - 2);
-                }
-                canvasCtx.stroke();
-
-                
-            }
-
-            // 更新当前分贝显示
-            function updateCurrentDbDisplay(dbValue, currentTime) {
-                // 更新分贝显示
-                dbLevel.textContent = `${dbValue.toFixed(1)} dB`;
-
-                // 根据分贝值设置颜色
-                if (dbValue > 0) {
-                    dbLevel.className = 'db-value';
-                } else if (dbValue > -20) {
-                    dbLevel.className = 'db-value';
-                } else {
-                    dbLevel.className = 'db-value db-negative';
-                }
-
-                // 更新时间显示
-                currentTimeIndicator.textContent = formatTime(currentTime);
             }
 
             // 将Canvas坐标转换为时间
@@ -910,50 +770,12 @@
                 };
             }
 
-            // 开始拖动
-            function startDrag(clientX, clientY) {
-                if (!audioData || !audioDuration) return false;
-
-                const pos = getCanvasPosition(clientX, clientY);
-
-
-                // 暂停播放
-                pauseAudio();
-
-                // 开始拖动
-                isDragging = true;
-                dragStartX = pos.x;
-                currentDragX = pos.x;
-
-                return true;
-            }
-
-            // 结束拖动
-            function endDrag(clientX, clientY) {
-                if (!isDragging) return;
-
-                // 结束拖动状态
-                isDragging = false;
-                isMouseDown = false;
-                isTouchActive = false;
-                isClickEvent = false;
-
-
-                audio.currentTime = Math.max(0, Math.min(audioDuration, targetTime));
-
-                // 更新UI
-                updateProgressDisplay();
-
-                // 恢复播放
-                playAudio();
-            }
-
             // 更新拖动
             function updateDrag(moveDistance) {
-                if (!isDragging) return;
 
                 // 计算对应时间
                 targetTime = audio.currentTime - moveDistance * (VISUALIZATION_WINDOW / decibelCanvas.width);
+
                 // 节流绘制
                 const now = Date.now();
                 if (now - lastDrawTime > DRAW_THROTTLE) {
@@ -966,75 +788,41 @@
             function initCanvasDragEvents() {
                 // 鼠标事件
                 canvasContainer.addEventListener('mousedown', function (e) {
-                    if (e.button !== 0) return; // 只处理左键
                     e.preventDefault();
-
+                    // 暂停播放
+                    pauseAudio();
+                    dragStartX = e.clientX;
                     isClickEvent = true;
-                    isMouseDown = startDrag(e.clientX, e.clientY);
+                    isMouseDown = true;
                 });
 
                 canvasContainer.addEventListener('mousemove', function (e) {
                     e.preventDefault();
-
-                    const pos = getCanvasPosition(e.clientX, e.clientY);
-
                     if (isMouseDown) {
                         // 检查是否真的是拖动（移动超过阈值）
-                        const moveDistance = pos.x - dragStartX;
-                        if (Math.abs(moveDistance) > DRAG_THRESHOLD) {
+                        const moveDistance = e.clientX - dragStartX;
+                        if (Math.abs(moveDistance) > DRAG_THRESHOLD) { // 拖动事件
                             isClickEvent = false;
+                            updateDrag(moveDistance);
                         }
-
-                        updateDrag(moveDistance);
-                    } else {
-                        // 鼠标悬停时显示时间提示
-                        targetTime = canvasXToTime(pos.x, audio.currentTime);
-                        console.log('mousemove:', targetTime);
-                        dragTimeDisplay.textContent = formatTime(targetTime);
-                        dragTimeDisplay.style.left = `${Math.min(pos.x, decibelCanvas.width - 60)}px`;
-                        dragTimeDisplay.style.display = 'block';
                     }
                 });
 
                 canvasContainer.addEventListener('mouseup', function (e) {
                     if (e.button !== 0) return;
                     e.preventDefault();
-                    endDrag(e.clientX, e.clientY);
-                });
-
-                canvasContainer.addEventListener('mouseleave', function (e) {
-                    if (isMouseDown) {
-                        // 鼠标在拖动中离开Canvas，使用最后已知位置结束拖动
-                        const rect = canvasContainer.getBoundingClientRect();
-                        const clientX = e.clientX || (rect.left + currentDragX);
-                        const clientY = e.clientY || (rect.top + rect.height / 2);
-                        endDrag(clientX, clientY);
-                    } else if (!isTouchActive) {
-                        // 隐藏时间提示
-                        dragTimeDisplay.style.display = 'none';
+                    isMouseDown = false;
+                    if (isClickEvent) { // 处理点击事件
+                        let pos = getCanvasPosition(dragStartX, 0);
+                        targetTime = canvasXToTime(pos.x, audio.currentTime);
                     }
+                    // 更新音频当前时间
+                    audio.currentTime = Math.max(0, Math.min(audioDuration, targetTime));
+
+                    // 恢复播放
+                    playAudio();
                 });
 
-                // 点击事件（快速跳转）
-                canvasContainer.addEventListener('click', function (e) {
-                    if (e.button !== 0) return;
-                    e.preventDefault();
-
-                    // 只处理真正的点击事件（不是拖动结束）
-                    if (!isClickEvent) return;
-
-                    if (!audioData || !audioDuration) return;
-
-                    const pos = getCanvasPosition(e.clientX, e.clientY);
-                    targetTime = canvasXToTime(pos.x, audio.currentTime);
-                    console.log('click:', targetTime);
-                    // 跳转到目标时间
-                    audio.currentTime = targetTime;
-
-                    // 更新UI
-                    updateProgressDisplay();
-                    drawDecibelVisualization(targetTime);
-                });
             }
 
             // 初始化进度条事件
@@ -1111,11 +899,18 @@
                 }
             }
 
+            // 监听输入框变化
+            inputWidth.addEventListener('change', function inputChange() {
+                const value = parseFloat(this.value);
+                dT = this.value - VISUALIZATION_WINDOW;
+                VISUALIZATION_WINDOW = value;
+                // audio.currentTime = Math.max(0, Math.min(audioDuration, audio.currentTime + dT / 2));
+            });
             // 快退/快进按钮
             prevBtn.addEventListener('click', function () {
                 if (!audio.src || !audioData) return;
 
-                audio.currentTime = Math.max(0, audio.currentTime - 10);
+                audio.currentTime = Math.max(0, audio.currentTime - VISUALIZATION_WINDOW);
                 drawDecibelVisualization(audio.currentTime);
                 updateProgressDisplay();
             });
@@ -1123,7 +918,7 @@
             nextBtn.addEventListener('click', function () {
                 if (!audio.src || !audioData) return;
 
-                audio.currentTime = Math.min(audioDuration, audio.currentTime + 10);
+                audio.currentTime = Math.min(audioDuration, audio.currentTime + VISUALIZATION_WINDOW);
                 drawDecibelVisualization(audio.currentTime);
                 updateProgressDisplay();
             });
@@ -1162,7 +957,7 @@
             audio.addEventListener('timeupdate', function () {
                 // 仅作为后备，主要更新由动画循环处理
                 // 当动画循环暂停时（如拖动中），仍能更新进度
-                if (!animationFrameId && !isSliderDragging && !isDragging) {
+                if (!animationFrameId && !isSliderDragging) {
                     updateProgressDisplay();
                 }
             });
@@ -1196,5 +991,4 @@
         });
     </script>
 </body>
-
 </html>

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -398,6 +399,9 @@
             const PROGRESS_UPDATE_INTERVAL = 100; // 进度更新间隔(ms)
             const DRAG_THRESHOLD = 50; // 拖动阈值（像素）
 
+            // [修复1] 存储当前对象URL以便释放
+            let currentObjectURL = null;
+
             // 初始化Canvas
             canvasCtx = decibelCanvas.getContext('2d');
 
@@ -432,6 +436,24 @@
                 if (animationFrameId) {
                     cancelAnimationFrame(animationFrameId);
                     animationFrameId = null;
+                }
+
+                // [修复2] 清理Audio元素资源
+                if (audio.src) {
+                    audio.removeAttribute('src');
+                    audio.load();
+                }
+
+                // [修复3] 释放旧的对象URL
+                if (currentObjectURL) {
+                    URL.revokeObjectURL(currentObjectURL);
+                    currentObjectURL = null;
+                }
+
+                // [修复4] 关闭并清理AudioContext
+                if (audioContext) {
+                    audioContext.close();
+                    audioContext = null;
                 }
 
                 // 重置变量
@@ -501,11 +523,11 @@
                 resetPlayer();
 
                 try {
-                    // 创建音频URL
-                    const url = URL.createObjectURL(file);
+                    // 创建音频URL [修复5] 存储URL以便后续释放
+                    currentObjectURL = URL.createObjectURL(file);
 
                     // 加载并分析音频
-                    await loadAndAnalyzeAudio(url);
+                    await loadAndAnalyzeAudio(currentObjectURL);
 
                     // 分析完成后更新UI
                     fileInfo.textContent = `已加载: ${file.name} (${formatTime(audioDuration)})`;
@@ -543,7 +565,7 @@
 
                     const arrayBuffer = await response.arrayBuffer();
 
-                    // 2. 创建音频上下文
+                    // 2. 创建音频上下文 [修复6] 确保旧的已关闭
                     if (audioContext) {
                         await audioContext.close();
                     }
@@ -991,4 +1013,5 @@
         });
     </script>
 </body>
+
 </html>
